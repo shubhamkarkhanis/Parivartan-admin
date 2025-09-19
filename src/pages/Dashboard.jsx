@@ -35,15 +35,15 @@ import {
   Phone
 } from 'lucide-react';
 
-// Mock data for demonstration
-const mockIssues = [
+// --- CHANGE 1: All issues now start as 'Pending' and 'Unassigned' ---
+const initialIssues = [
   {
     id: 1,
     title: "Pothole on Main Street",
     type: "Roads",
     priority: "High",
     status: "Pending",
-    reportedAt: "2025-09-10T14:30:00Z",
+    reportedAt: "2025-09-19T14:30:00Z",
     location: { lat: 18.5679, lng: 73.9143, address: "Main Street, Near Bus Stop, Pimpri" },
     reporter: "John Doe",
     description: "Large pothole causing traffic issues",
@@ -58,13 +58,13 @@ const mockIssues = [
     title: "Broken Streetlight",
     type: "Lighting",
     priority: "Medium",
-    status: "Assigned",
-    reportedAt: "2025-09-10T09:15:00Z",
+    status: "Pending",
+    reportedAt: "2025-09-19T09:15:00Z",
     location: { lat: 18.5694, lng: 73.9125, address: "Park Avenue, Chinchwad" },
     reporter: "Jane Smith",
     description: "Street light not working since last week",
     department: "Electrical",
-    assignedTo: "Rajesh Patil",
+    assignedTo: "Unassigned",
     images: 1,
     phoneNumber: "+91 87654 32109",
     estimatedResolution: "1-2 hours"
@@ -74,13 +74,13 @@ const mockIssues = [
     title: "Overflowing Trash Bin",
     type: "Sanitation",
     priority: "Low",
-    status: "In Progress",
-    reportedAt: "2025-09-09T16:45:00Z",
+    status: "Pending",
+    reportedAt: "2025-09-18T16:45:00Z",
     location: { lat: 18.5661, lng: 73.9158, address: "City Park, Pimpri" },
     reporter: "Sam Wilson",
     description: "Trash bin overflowing near park entrance",
     department: "Sanitation",
-    assignedTo: "Amit Kumar",
+    assignedTo: "Unassigned",
     images: 3,
     phoneNumber: "+91 76543 21098",
     estimatedResolution: "30 minutes"
@@ -90,13 +90,13 @@ const mockIssues = [
     title: "Water Leak on Street",
     type: "Infrastructure",
     priority: "High",
-    status: "Work Completed",
-    reportedAt: "2025-09-08T11:20:00Z",
+    status: "Pending",
+    reportedAt: "2025-09-17T11:20:00Z",
     location: { lat: 18.5671, lng: 73.9135, address: "Commercial Street, Pimpri" },
     reporter: "Priya Sharma",
     description: "Water pipe burst causing road flooding",
     department: "Water Works",
-    assignedTo: "Suresh Desai",
+    assignedTo: "Unassigned",
     images: 1,
     phoneNumber: "+91 98234 56789",
     estimatedResolution: "4-6 hours"
@@ -111,14 +111,14 @@ const workers = [
 ];
 
 const Dashboard = () => {
+  const [issues, setIssues] = useState(initialIssues);
   const [selectedIssue, setSelectedIssue] = useState(null);
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterPriority, setFilterPriority] = useState('All');
   const [filterType, setFilterType] = useState('All');
-  const [filterAssignment, setFilterAssignment] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState('grid'); // grid or list
+  const [viewMode, setViewMode] = useState('grid');
   const [showMap, setShowMap] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showIssueDetail, setShowIssueDetail] = useState(false);
@@ -157,27 +157,34 @@ const Dashboard = () => {
     }
   };
 
-  const filteredIssues = mockIssues.filter(issue => {
-    return (
-      (filterStatus === 'All' || issue.status === filterStatus) &&
-      (filterPriority === 'All' || issue.priority === filterPriority) &&
-      (filterType === 'All' || issue.type === filterType) &&
-      (filterAssignment === 'All' || 
-       (filterAssignment === 'Unassigned' && issue.assignedTo === 'Unassigned') ||
-       (filterAssignment === 'Assigned' && issue.assignedTo !== 'Unassigned')) &&
-      (issue.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       issue.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       issue.location.address.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  });
+  const applyFilters = (issueList) => {
+    return issueList.filter(issue => {
+        return (
+          (filterStatus === 'All' || issue.status === filterStatus) &&
+          (filterPriority === 'All' || issue.priority === filterPriority) &&
+          (filterType === 'All' || issue.type === filterType) &&
+          (issue.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           issue.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           issue.location.address.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+      });
+  };
+
+  const allUnassignedIssues = issues.filter(i => i.assignedTo === 'Unassigned');
+  const allAssignedIssues = issues.filter(i => i.assignedTo !== 'Unassigned');
+
+  const filteredUnassignedIssues = applyFilters(allUnassignedIssues);
+  const filteredAssignedIssues = applyFilters(allAssignedIssues);
+
+  const filteredIssuesForMap = applyFilters(issues);
 
   const stats = {
-    total: mockIssues.length,
-    pending: mockIssues.filter(i => i.status === 'Pending').length,
-    assigned: mockIssues.filter(i => i.status === 'Assigned').length,
-    inProgress: mockIssues.filter(i => i.status === 'In Progress').length,
-    completed: mockIssues.filter(i => i.status === 'Work Completed').length,
-    highPriority: mockIssues.filter(i => i.priority === 'High').length
+    total: issues.length,
+    pending: issues.filter(i => i.status === 'Pending').length,
+    assigned: issues.filter(i => i.status === 'Assigned' || i.status === 'In Progress' || i.status === 'Work Completed').length,
+    inProgress: issues.filter(i => i.status === 'In Progress').length,
+    completed: issues.filter(i => i.status === 'Work Completed').length,
+    highPriority: issues.filter(i => i.priority === 'High').length
   };
 
   const handleStatClick = (statType) => {
@@ -209,7 +216,6 @@ const Dashboard = () => {
     setShowIssueDetail(true);
   };
 
-  // Initialize map when toggled on
   useEffect(() => {
     if (showMap && mapRef.current && !leafletMapRef.current) {
       const link = document.createElement('link');
@@ -240,12 +246,11 @@ const Dashboard = () => {
     }
   }, [showMap]);
 
-  // Update markers when filtered issues change
   useEffect(() => {
     if (leafletMapRef.current && window.L && showMap) {
       updateMapMarkers();
     }
-  }, [filteredIssues, selectedIssue, showMap]);
+  }, [filteredIssuesForMap, selectedIssue, showMap]);
 
   const updateMapMarkers = () => {
     if (!leafletMapRef.current || !window.L) return;
@@ -255,7 +260,7 @@ const Dashboard = () => {
     });
     markersRef.current = [];
 
-    filteredIssues.forEach((issue) => {
+    filteredIssuesForMap.forEach((issue) => {
       const iconColor = getMarkerColor(issue.status);
       const customIcon = window.L.divIcon({
         className: 'custom-marker',
@@ -339,11 +344,22 @@ const Dashboard = () => {
 
   const handleAssignIssue = (workerId) => {
     const worker = workers.find(w => w.id === workerId);
+    if (!worker || !selectedIssue) return;
+
+    setIssues(prevIssues => 
+      prevIssues.map(issue => 
+        issue.id === selectedIssue.id 
+          ? { ...issue, assignedTo: worker.name, status: 'Assigned' } 
+          : issue
+      )
+    );
+    
     setSelectedIssue(prev => ({
-      ...prev,
-      assignedTo: worker.name,
-      status: 'Assigned'
+        ...prev,
+        assignedTo: worker.name,
+        status: 'Assigned'
     }));
+
     setShowAssignModal(false);
     alert(`Issue assigned to ${worker.name}`);
   };
@@ -441,7 +457,6 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
@@ -483,7 +498,6 @@ const Dashboard = () => {
       </header>
 
       <div className="px-6 py-6 space-y-6">
-        {/* Map View (when toggled) */}
         {showMap && (
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden relative z-10">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
@@ -502,7 +516,6 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Stats Dashboard */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Dashboard Overview</h2>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
@@ -551,7 +564,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Filters and Controls */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-4">
@@ -645,68 +657,61 @@ const Dashboard = () => {
                   <option value="Parks">Parks</option>
                 </select>
               </div>
-              
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Assignment</label>
-                <select
-                  value={filterAssignment}
-                  onChange={(e) => setFilterAssignment(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="All">All</option>
-                  <option value="Unassigned">Unassigned</option>
-                  <option value="Assigned">Assigned</option>
-                </select>
-              </div>
             </div>
           )}
         </div>
 
-        {/* Issues List */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Issues ({filteredIssues.length})
-            </h2>
-            <div className="flex items-center space-x-2">
-              <button className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center space-x-1">
-                <Download className="w-4 h-4" />
-                <span>Export</span>
-              </button>
-              <button className="text-sm text-gray-600 hover:text-gray-800 font-medium flex items-center space-x-1">
-                <RefreshCw className="w-4 h-4" />
-                <span>Refresh</span>
-              </button>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-semibold text-gray-900">
+                    All Issues ({filteredUnassignedIssues.length})
+                    </h2>
+                </div>
 
-          {/* Issues Grid/List */}
-          <div className={viewMode === 'grid' 
-            ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' 
-            : 'space-y-3'
-          }>
-            {filteredIssues.map((issue) => (
-              viewMode === 'grid' 
-                ? <IssueGridCard key={issue.id} issue={issue} />
-                : <IssueListRow key={issue.id} issue={issue} />
-            ))}
-          </div>
+                <div className={viewMode === 'grid' 
+                    ? 'grid grid-cols-1 xl:grid-cols-2 gap-4' 
+                    : 'space-y-3'
+                }>
+                    {filteredUnassignedIssues.map((issue) => (
+                    viewMode === 'grid' 
+                        ? <IssueGridCard key={issue.id} issue={issue} />
+                        : <IssueListRow key={issue.id} issue={issue} />
+                    ))}
+                </div>
 
-          {filteredIssues.length === 0 && (
-            <div className="text-center py-12">
-              <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No issues found</h3>
-              <p className="text-gray-500">Try adjusting your filters or search criteria</p>
+                {filteredUnassignedIssues.length === 0 && (
+                    <div className="text-center py-12 text-gray-500">No unassigned issues found.</div>
+                )}
             </div>
-          )}
+
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-semibold text-gray-900">
+                    Assigned Issues ({filteredAssignedIssues.length})
+                    </h2>
+                </div>
+
+                <div className={viewMode === 'grid' 
+                    ? 'grid grid-cols-1 xl:grid-cols-2 gap-4' 
+                    : 'space-y-3'
+                }>
+                    {filteredAssignedIssues.map((issue) => (
+                    viewMode === 'grid' 
+                        ? <IssueGridCard key={issue.id} issue={issue} />
+                        : <IssueListRow key={issue.id} issue={issue} />
+                    ))}
+                </div>
+                 {filteredAssignedIssues.length === 0 && (
+                    <div className="text-center py-12 text-gray-500">No assigned issues found.</div>
+                )}
+            </div>
         </div>
       </div>
 
-      {/* Issue Detail Modal */}
       {showIssueDetail && selectedIssue && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
             <div className="px-6 py-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-xl">
               <div className="flex items-start justify-between">
                 <div>
@@ -723,7 +728,6 @@ const Dashboard = () => {
                   <X className="w-6 h-6" />
                 </button>
               </div>
-
               <div className="flex space-x-2 mt-4">
                 <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusColor(selectedIssue.status)}`}>
                   {selectedIssue.status}
@@ -733,19 +737,13 @@ const Dashboard = () => {
                 </span>
               </div>
             </div>
-
-            {/* Modal Content */}
             <div className="p-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column - Issue Details */}
                 <div className="lg:col-span-2 space-y-6">
-                  {/* Description */}
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Description</h3>
                     <p className="text-gray-700">{selectedIssue.description}</p>
                   </div>
-
-                  {/* Location */}
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Location</h3>
                     <div className="flex items-start space-x-2">
@@ -753,8 +751,6 @@ const Dashboard = () => {
                       <span className="text-gray-700">{selectedIssue.location.address}</span>
                     </div>
                   </div>
-
-                  {/* Reporter Information */}
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Reporter Information</h3>
                     <div className="bg-gray-50 rounded-lg p-4">
@@ -783,8 +779,6 @@ const Dashboard = () => {
                       </div>
                     </div>
                   </div>
-
-                  {/* Images */}
                   {selectedIssue.images > 0 && (
                     <div>
                       <h3 className="font-semibold text-gray-900 mb-3">
@@ -800,32 +794,32 @@ const Dashboard = () => {
                     </div>
                   )}
                 </div>
-
-                {/* Right Column - Actions & Assignment */}
                 <div className="space-y-6">
-                  {/* Quick Actions */}
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Quick Actions</h3>
                     <div className="space-y-2">
-                      <button
-                        onClick={() => setShowAssignModal(true)}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2"
-                      >
-                        <UserPlus className="w-4 h-4" />
-                        <span>Assign Worker</span>
-                      </button>
+                      {selectedIssue.assignedTo === 'Unassigned' && (
+                        <button
+                            onClick={() => setShowAssignModal(true)}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2"
+                        >
+                            <UserPlus className="w-4 h-4" />
+                            <span>Assign Worker</span>
+                        </button>
+                      )}
                       <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2">
                         <Edit3 className="w-4 h-4" />
                         <span>Edit Issue</span>
                       </button>
-                      <button className="w-full bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2">
-                        <CheckCircle className="w-4 h-4" />
-                        <span>Mark as Verified</span>
-                      </button>
+                      {/* --- CHANGE 2: Button is now conditional --- */}
+                      {selectedIssue.assignedTo !== 'Unassigned' && (
+                        <button className="w-full bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2">
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Mark as Verified</span>
+                        </button>
+                      )}
                     </div>
                   </div>
-
-                  {/* Assignment Information */}
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Assignment</h3>
                     <div className="bg-gray-50 rounded-lg p-4">
@@ -846,8 +840,6 @@ const Dashboard = () => {
                       </div>
                     </div>
                   </div>
-
-                  {/* Additional Actions */}
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-3">More Actions</h3>
                     <div className="space-y-2">
@@ -865,8 +857,6 @@ const Dashboard = () => {
                       </button>
                     </div>
                   </div>
-
-                  {/* Issue Timeline/History */}
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Recent Activity</h3>
                     <div className="space-y-3">
@@ -895,7 +885,6 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Assignment Modal */}
       {showAssignModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-96 max-w-full mx-4">
@@ -908,13 +897,11 @@ const Dashboard = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-
             <div className="mb-4">
               <p className="text-sm text-gray-600 mb-2">
                 Assign "{selectedIssue?.title}" to a field worker:
               </p>
             </div>
-
             <div className="space-y-2 mb-6">
               {workers.map((worker) => (
                 <div
@@ -934,7 +921,6 @@ const Dashboard = () => {
                 </div>
               ))}
             </div>
-
             <div className="flex space-x-3">
               <button
                 onClick={() => setShowAssignModal(false)}
