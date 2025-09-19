@@ -35,12 +35,11 @@ import {
   Phone
 } from 'lucide-react';
 
-// --- CHANGE 1: All issues now start as 'Pending' and 'Unassigned' ---
 const initialIssues = [
   {
     id: 1,
     title: "Pothole on Main Street",
-    type: "Roads",
+    type: "Roads & Traffic", // Updated to match new categories
     priority: "High",
     status: "Pending",
     reportedAt: "2025-09-19T14:30:00Z",
@@ -56,7 +55,7 @@ const initialIssues = [
   {
     id: 2,
     title: "Broken Streetlight",
-    type: "Lighting",
+    type: "Street Lighting", // Updated to match new categories
     priority: "Medium",
     status: "Pending",
     reportedAt: "2025-09-19T09:15:00Z",
@@ -72,7 +71,7 @@ const initialIssues = [
   {
     id: 3,
     title: "Overflowing Trash Bin",
-    type: "Sanitation",
+    type: "Waste & Cleanliness", // Updated to match new categories
     priority: "Low",
     status: "Pending",
     reportedAt: "2025-09-18T16:45:00Z",
@@ -88,7 +87,7 @@ const initialIssues = [
   {
     id: 4,
     title: "Water Leak on Street",
-    type: "Infrastructure",
+    type: "Drainage & Water Logging", // Updated to match new categories
     priority: "High",
     status: "Pending",
     reportedAt: "2025-09-17T11:20:00Z",
@@ -108,6 +107,19 @@ const workers = [
   { id: 2, name: "Amit Kumar", department: "Sanitation", activeIssues: 1 },
   { id: 3, name: "Suresh Desai", department: "Water Works", activeIssues: 1 },
   { id: 4, name: "Deepak Singh", department: "Electrical", activeIssues: 0 }
+];
+
+// --- CHANGE 1: New array for the filter dropdown based on your screenshot ---
+const issueCategories = [
+    "Roads & Traffic",
+    "Waste & Cleanliness",
+    "Street Lighting",
+    "Stray Animals",
+    "Illegal Construction",
+    "Drainage & Water Logging",
+    "Parks & Public Spaces",
+    "Electrical Hazards",
+    "Other",
 ];
 
 const Dashboard = () => {
@@ -149,10 +161,10 @@ const Dashboard = () => {
 
   const getTypeIcon = (type) => {
     switch (type) {
-      case 'Roads': return <Car className="w-4 h-4" />;
-      case 'Lighting': return <Lightbulb className="w-4 h-4" />;
-      case 'Sanitation': return <Trash2 className="w-4 h-4" />;
-      case 'Parks': return <TreePine className="w-4 h-4" />;
+      case 'Roads & Traffic': return <Car className="w-4 h-4" />;
+      case 'Street Lighting': return <Lightbulb className="w-4 h-4" />;
+      case 'Waste & Cleanliness': return <Trash2 className="w-4 h-4" />;
+      case 'Parks & Public Spaces': return <TreePine className="w-4 h-4" />;
       default: return <AlertTriangle className="w-4 h-4" />;
     }
   };
@@ -645,16 +657,18 @@ const Dashboard = () => {
               
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+                {/* --- CHANGE 2: The dropdown now generates options dynamically --- */}
                 <select
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="All">All Types</option>
-                  <option value="Roads">Roads</option>
-                  <option value="Lighting">Lighting</option>
-                  <option value="Sanitation">Sanitation</option>
-                  <option value="Parks">Parks</option>
+                  {issueCategories.map(category => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -811,7 +825,6 @@ const Dashboard = () => {
                         <Edit3 className="w-4 h-4" />
                         <span>Edit Issue</span>
                       </button>
-                      {/* --- CHANGE 2: Button is now conditional --- */}
                       {selectedIssue.assignedTo !== 'Unassigned' && (
                         <button className="w-full bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2">
                             <CheckCircle className="w-4 h-4" />
