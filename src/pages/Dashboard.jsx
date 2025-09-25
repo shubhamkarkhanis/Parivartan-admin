@@ -6,7 +6,7 @@ import {
   Trash2, Lightbulb, Car, TreePine, Map, X,
   Plus, UserPlus, Edit3, Send, Archive,
   RefreshCw, ChevronDown, ChevronUp, Grid, Menu, Phone,
-  Thermometer // --- NEW: Icon for the heatmap button ---
+  Thermometer
 } from 'lucide-react';
 
 // --- API Configuration & Static Data ---
@@ -69,10 +69,10 @@ const Dashboard = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showIssueDetail, setShowIssueDetail] = useState(false);
   
-  // --- NEW: State and ref for the heatmap layer ---
   const [showHeatmap, setShowHeatmap] = useState(false);
   const heatmapLayerRef = useRef(null);
-  
+  const [showMarkers, setShowMarkers] = useState(true);
+
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
   const markersRef = useRef([]);
@@ -100,7 +100,10 @@ const Dashboard = () => {
 
   const handleUpdateStatus = async (issueId, newUiStatus) => {
     const apiStatusMap = {
-      'In Progress': 'IN_PROGRESS', 'Verified': 'RESOLVED', 'Rejected': 'REJECTED'
+      'In Progress': 'IN_PROGRESS',
+      'Work Completed': 'RESOLVED',
+      'Verified': 'VERIFIED',
+      'Rejected': 'REJECTED'
     };
     const apiStatus = apiStatusMap[newUiStatus];
     if (!apiStatus) return;
@@ -117,23 +120,29 @@ const Dashboard = () => {
       console.error('Error updating status:', error);
     }
   };
-
+  
+  // --- MODIFIED: This function now ONLY updates the frontend state as requested ---
   const handleAssignIssue = (workerId) => {
     const worker = workers.find(w => w.id === workerId);
-    if (!selectedIssue || !worker) return;
+    if (!worker || !selectedIssue) return;
 
     setIssues(prevIssues => 
       prevIssues.map(issue => 
         issue.id === selectedIssue.id 
-          ? { ...issue, assignedTo: worker.name, status: 'Assigned' }
+          ? { ...issue, assignedTo: worker.name, status: 'Assigned' } 
           : issue
       )
     );
     
-    setSelectedIssue(prev => ({ ...prev, assignedTo: worker.name, status: 'Assigned' }));
+    // Also update the selected issue in the modal for immediate feedback
+    setSelectedIssue(prev => ({
+        ...prev,
+        assignedTo: worker.name,
+        status: 'Assigned'
+    }));
 
     setShowAssignModal(false);
-    setShowIssueDetail(false);
+    alert(`Issue assigned to ${worker.name}`);
   };
 
   const getStatusColor = (status) => {
@@ -212,7 +221,6 @@ const Dashboard = () => {
     setShowIssueDetail(true);
   };
   
-  // --- MODIFIED: Map initialization now also loads the Leaflet.heat plugin ---
   useEffect(() => {
     if (showMap && mapRef.current && !leafletMapRef.current) {
         const leafletCss = document.createElement('link');
@@ -225,7 +233,6 @@ const Dashboard = () => {
         document.head.appendChild(leafletScript);
 
         leafletScript.onload = () => {
-            // Now load the heatmap plugin after Leaflet is loaded
             const heatScript = document.createElement('script');
             heatScript.src = 'https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js';
             document.head.appendChild(heatScript);
@@ -238,7 +245,6 @@ const Dashboard = () => {
                         attribution: '© OpenStreetMap contributors'
                     }).addTo(leafletMapRef.current);
                     
-                    // Initial draw
                     updateMapMarkers();
                     updateHeatmap();
                 }
@@ -247,13 +253,12 @@ const Dashboard = () => {
     }
   }, [showMap, issues]);
 
-  // --- MODIFIED: This useEffect now controls both markers and the heatmap ---
   useEffect(() => {
     if (leafletMapRef.current && window.L && showMap) {
       updateMapMarkers();
       updateHeatmap();
     }
-  }, [filteredIssuesForMap, selectedIssue, showMap, showHeatmap]); // Added showHeatmap dependency
+  }, [filteredIssuesForMap, selectedIssue, showMap, showHeatmap, showMarkers]);
 
   const getMarkerColor = (status) => {
     switch (status) {
@@ -263,33 +268,12 @@ const Dashboard = () => {
     }
   };
 
-  const getStatusBgColor = (status) => {
-    switch (status) {
-      case 'Pending': return '#fef3c7'; case 'Assigned': return '#dbeafe';
-      case 'In Progress': return '#e9d5ff'; case 'Work Completed': return '#d1fae5';
-      case 'Verified': return '#a7f3d0'; default: return '#f3f4f6';
-    }
-  };
-
-  const getStatusTextColor = (status) => {
-    switch (status) {
-      case 'Pending': return '#d97706'; case 'Assigned': return '#2563eb';
-      case 'In Progress': return '#7c3aed'; case 'Work Completed': return '#059669';
-      case 'Verified': return '#047857'; default: return '#4b5563';
-    }
-  };
-
-  const getPriorityBgColor = (priority) => {
+  const getMarkerSize = (priority) => {
     switch (priority) {
-      case 'High': return '#fee2e2'; case 'Medium': return '#fed7aa';
-      case 'Low': return '#d1fae5'; default: return '#f3f4f6';
-    }
-  };
-
-  const getPriorityTextColor = (priority) => {
-    switch (priority) {
-      case 'High': return '#dc2626'; case 'Medium': return '#ea580c';
-      case 'Low': return '#059669'; default: return '#4b5563';
+      case 'High': return { size: 24, anchor: 12 };
+      case 'Medium': return { size: 20, anchor: 10 };
+      case 'Low': return { size: 16, anchor: 8 };
+      default: return { size: 18, anchor: 9 };
     }
   };
 
@@ -299,57 +283,44 @@ const Dashboard = () => {
     markersRef.current.forEach(marker => leafletMapRef.current.removeLayer(marker));
     markersRef.current = [];
 
+    if (!showMarkers) {
+        return;
+    }
+
     filteredIssuesForMap.forEach((issue) => {
       const iconColor = getMarkerColor(issue.status);
+      const { size, anchor } = getMarkerSize(issue.priority);
       const customIcon = window.L.divIcon({
         className: 'custom-marker',
-        html: `<div style="background-color: ${iconColor}; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-        iconSize: [20, 20], iconAnchor: [10, 10]
+        html: `<div style="background-color: ${iconColor}; width: ${size}px; height: ${size}px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+        iconSize: [size, size],
+        iconAnchor: [anchor, anchor]
       });
       const marker = window.L.marker([issue.location.lat, issue.location.lng], { icon: customIcon }).addTo(leafletMapRef.current);
-      const popupContent = `<div style="font-family: system-ui, sans-serif; padding: 4px;">
-          <h4 style="margin: 0 0 4px; font-size: 14px; font-weight: 600;">${issue.title}</h4>
-          <div style="display: flex; gap: 8px;">
-            <span style="padding: 2px 8px; font-size: 11px; border-radius: 12px; background-color: ${getStatusBgColor(issue.status)}; color: ${getStatusTextColor(issue.status)};">${issue.status}</span>
-            <span style="padding: 2px 8px; font-size: 11px; border-radius: 12px; background-color: ${getPriorityBgColor(issue.priority)}; color: ${getPriorityTextColor(issue.priority)};">${issue.priority}</span>
-          </div></div>`;
-      marker.bindPopup(popupContent);
-      marker.on('click', () => handleIssueClick(issue));
+      marker.on('click', () => handleIssueClick(issue)); 
       markersRef.current.push(marker);
     });
   };
 
-  // --- NEW: Function to create and manage the heatmap layer ---
-// --- CORRECTED: Function to create and manage the heatmap layer for ALL pins ---
-  // --- CORRECTED: Function with more sensitive settings for better testing visuals ---
   const updateHeatmap = () => {
     if (!leafletMapRef.current || !window.L || !window.L.heatLayer) return;
 
-    // Remove the old heatmap layer if it exists
     if (heatmapLayerRef.current) {
         leafletMapRef.current.removeLayer(heatmapLayerRef.current);
         heatmapLayerRef.current = null;
     }
 
-    // If the heatmap is toggled on, create a new one
     if (showHeatmap) {
-        // 1. Get the location of ALL currently filtered issues
-        // We've increased the intensity of each point from 0.5 to 1.0
         const heatmapPoints = filteredIssuesForMap
-            .map(issue => [issue.location.lat, issue.location.lng, 1.0]); // <-- Intensity increased
+            .map(issue => [issue.location.lat, issue.location.lng, 1.0]); 
 
         if (heatmapPoints.length > 0) {
-            // 2. Create the heat layer with more sensitive options
             heatmapLayerRef.current = window.L.heatLayer(heatmapPoints, {
-                radius: 50,     // <-- Increased from 20 to make each point cover a larger area
-                blur: 30,       // <-- Increased slightly for a softer look
-                max: 1.0,       // <-- Added: Forces the map to show "hot" colors even with few points
-                maxZoom: 18,
+                radius: 50, blur: 30, max: 1.0, maxZoom: 18,
             }).addTo(leafletMapRef.current);
         }
     }
   };
-
 
   const IssueGridCard = ({ issue }) => (
     <div onClick={() => handleIssueClick(issue)} className="bg-white rounded-lg border border-gray-200 p-4 cursor-pointer transition-all hover:shadow-md hover:border-blue-300">
@@ -416,7 +387,10 @@ const Dashboard = () => {
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
               <div className="flex items-center space-x-4">
                   <h3 className="font-medium text-gray-900">Issue Locations Map</h3>
-                  {/* --- NEW: Heatmap toggle button --- */}
+                  <button onClick={() => setShowMarkers(!showMarkers)} className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs transition-colors ${showMarkers ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                      <MapPin className="w-4 h-4" />
+                      <span>{showMarkers ? 'Hide Markers' : 'Show Markers'}</span>
+                  </button>
                   <button onClick={() => setShowHeatmap(!showHeatmap)} className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs transition-colors ${showHeatmap ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                       <Thermometer className="w-4 h-4" />
                       <span>{showHeatmap ? 'Hide Heatmap' : 'Show Heatmap'}</span>
@@ -428,7 +402,6 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* The rest of the JSX is unchanged... */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Dashboard Overview</h2>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
@@ -462,18 +435,181 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* --- MODIFIED: This is the new modal layout you requested --- */}
       {showIssueDetail && selectedIssue && (
-          // Issue Detail Modal JSX (unchanged)
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">{/* ... modal content ... */}</div>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-xl z-10">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex items-center space-x-3 mb-2">
+                    {getTypeIcon(selectedIssue.type)}
+                    <h2 className="text-xl font-bold text-gray-900">{selectedIssue.title}</h2>
+                  </div>
+                  <p className="text-sm text-gray-600">#{selectedIssue.id} • {selectedIssue.department}</p>
+                </div>
+                <button onClick={() => setShowIssueDetail(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="flex space-x-2 mt-4">
+                <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusColor(selectedIssue.status)}`}>
+                  {selectedIssue.status}
+                </span>
+                <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getPriorityColor(selectedIssue.priority)}`}>
+                  {selectedIssue.priority}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Column */}
+                <div className="lg:col-span-2 space-y-6">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-3">Description</h3>
+                    <p className="text-gray-700 whitespace-pre-wrap">{selectedIssue.description}</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-3">Location</h3>
+                    <div className="flex items-start space-x-2">
+                      <MapPin className="w-5 h-5 text-gray-500 mt-0.5" />
+                      <span className="text-gray-700">{selectedIssue.location.address}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-3">Reporter Information</h3>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm text-gray-500">Name</div>
+                          <div className="font-medium text-gray-900">{selectedIssue.reporter}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500">Phone</div>
+                          <div className="font-medium text-gray-900 flex items-center space-x-2">
+                            <span>{selectedIssue.phoneNumber}</span>
+                            <button className="text-blue-600 hover:text-blue-800">
+                              <Phone className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500">Reported Date</div>
+                          <div className="font-medium text-gray-900">{new Date(selectedIssue.reportedAt).toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-500">Estimated Resolution</div>
+                          <div className="font-medium text-gray-900">{selectedIssue.estimatedResolution}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {selectedIssue.imageUrl && (
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-3">Reported Image</h3>
+                      <img src={selectedIssue.imageUrl} alt={selectedIssue.title} className="w-full h-auto rounded-lg object-cover border"/>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Column */}
+                <div className="space-y-6">
+                   <div>
+                    <h3 className="font-semibold text-gray-900 mb-3">Quick Actions</h3>
+                    <div className="space-y-2">
+                      {selectedIssue.assignedTo === 'Unassigned' && (
+                        <button onClick={() => setShowAssignModal(true)} className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2">
+                          <UserPlus className="w-4 h-4" />
+                          <span>Assign Worker</span>
+                        </button>
+                      )}
+                       { (selectedIssue.status === 'Assigned' || selectedIssue.status === 'In Progress') && (
+                        <button onClick={() => handleUpdateStatus(selectedIssue.id, 'Verified')} className="w-full bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2">
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Mark as Verified</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-3">Assignment</h3>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm text-gray-500">Assigned To</div>
+                        {selectedIssue.assignedTo === 'Unassigned' ? (
+                          <button onClick={() => setShowAssignModal(true)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Assign Now</button>
+                        ) : (
+                          <button onClick={() => setShowAssignModal(true)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Re-assign</button>
+                        )}
+                      </div>
+                      <div className="font-medium text-gray-900 flex items-center space-x-2">
+                        <User className="w-4 h-4 text-gray-500" />
+                        <span>{selectedIssue.assignedTo}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-3">More Actions</h3>
+                    <div className="space-y-2">
+                      <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2"><MessageSquare className="w-4 h-4" /><span>Add Comment</span></button>
+                      <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2"><Download className="w-4 h-4" /><span>Download Report</span></button>
+                      <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2"><Archive className="w-4 h-4" /><span>Archive Issue</span></button>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-3">Recent Activity</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-start space-x-3">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Issue reported</p>
+                          <p className="text-xs text-gray-500">{new Date(selectedIssue.reportedAt).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      {selectedIssue.assignedTo !== 'Unassigned' && (
+                        <div className="flex items-start space-x-3">
+                          <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">Assigned to {selectedIssue.assignedTo}</p>
+                            <p className="text-xs text-gray-500">Just now</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
+        </div>
       )}
 
       {showAssignModal && (
-          // Assign Worker Modal JSX (unchanged)
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl p-6 w-96 max-w-full mx-4">{/* ... modal content ... */}</div>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-96 max-w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Assign Issue</h3>
+              <button onClick={() => setShowAssignModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">Assign "{selectedIssue?.title}" to a field worker:</p>
+            </div>
+            <div className="space-y-2 mb-6">
+              {workers.map((worker) => (
+                <div key={worker.id} onClick={() => handleAssignIssue(worker.id)} className="p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-gray-900">{worker.name}</div>
+                      <div className="text-sm text-gray-500">{worker.department}</div>
+                    </div>
+                    <div className="text-sm text-gray-500">{worker.activeIssues} active issues</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
+        </div>
       )}
     </div>
   );
