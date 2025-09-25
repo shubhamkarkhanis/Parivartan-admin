@@ -473,10 +473,17 @@ const Dashboard = () => {
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">Civic Dashboard</h1>
+                <div className="flex items-center space-x-2">
+            <img 
+              src="/parivartan_logo-removebg-preview.png"   // or import logo from './assets/react.svg'
+              alt="Parivartan Logo"
+              className="h-32 w-32"
+            />
+              <h1 className="text-2xl font-bold text-gray-900">Parivartan Dashboard</h1>
+              </div>
               <div className="hidden md:flex items-center space-x-2 text-sm text-gray-500">
                 <MapPin className="w-4 h-4" />
-                <span>Pimpri-Chinchwad Municipal Corporation</span>
+                <span>Pune Mahanagar Palika</span>
               </div>
             </div>
             

@@ -13,7 +13,7 @@ const AdminLogin = ({ onLogin }) => {
 
     // Simulate API call
     setTimeout(() => {
-      if (email === 'admin@civic.gov' && password === 'admin123') {
+      if (email === 'a' && password === 'a') {
         onLogin({ email, name: 'Admin User', role: 'admin' });
       } else {
         setError('Invalid email or password');
