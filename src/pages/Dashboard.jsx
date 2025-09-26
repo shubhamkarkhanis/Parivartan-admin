@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom'; // Import the Link component
+import { Link } from 'react-router-dom';
 import { 
   Search, Filter, Bell, Settings, User, Calendar,
   Clock, AlertTriangle, CheckCircle, XCircle,
@@ -26,6 +26,20 @@ const issueCategories = [
     "Parks & Public Spaces", "Electrical Hazards", "Other",
 ];
 
+// MOCK DATA: Add work summary and proof image for completed tasks
+const MOCK_WORK_PROOFS = {
+    1: {
+        summary: "Cleared blocked drainage system, removed debris and waste materials. Applied temporary concrete patch. Drainage is now flowing properly and area has been cleaned.",
+        imageUrl: "https://placehold.co/600x400/e2e8f0/64748b?text=Work+Proof+1",
+        submittedBy: "Rajesh Patil",
+    },
+    3: {
+        summary: "Fixed the faulty wiring and replaced the non-functional street light bulb. The area is now properly illuminated at night.",
+        imageUrl: "https://placehold.co/600x400/e2e8f0/64748b?text=Work+Proof+2",
+        submittedBy: "Deepak Singh",
+    }
+};
+
 const transformApiReport = (report) => {
     const typeMap = {
       'road': { type: 'Roads & Traffic', department: 'Public Works' },
@@ -43,17 +57,23 @@ const transformApiReport = (report) => {
     const category = report.category?.name?.toLowerCase() || 'other';
     const typeInfo = typeMap[category] || { type: 'Other', department: 'General' };
   
-    return {
+    const transformed = {
       id: report.id,
-      title: report.description.substring(0, 50) + (report.description.length > 50 ? '...' : ''),
+      title: report.description ? report.description.substring(0, 50) + (report.description.length > 50 ? '...' : '') : "No Title",
       type: typeInfo.type, priority: report.priority || "Medium",
       status: statusMap[report.status] || 'Pending', reportedAt: report.created_at,
-      location: { lat: report.latitude, lng: report.longitude, address: report.location_address },
+      location: report.latitude ? { lat: report.latitude, lng: report.longitude, address: report.location_address } : null,
       reporter: report.citizen?.name || 'Anonymous', description: report.description,
       department: typeInfo.department, assignedTo: report.assignedTo || 'Unassigned',
       images: report.image_url ? 1 : 0, imageUrl: report.image_url,
       phoneNumber: report.citizen?.phone || "N/A", estimatedResolution: "N/A"
     };
+
+    if (transformed.status === 'Work Completed' && MOCK_WORK_PROOFS[report.id]) {
+        transformed.workProof = MOCK_WORK_PROOFS[report.id];
+    }
+
+    return transformed;
 };
 
 
@@ -69,6 +89,7 @@ const Dashboard = () => {
   const [showMap, setShowMap] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showIssueDetail, setShowIssueDetail] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
   
   const [showHeatmap, setShowHeatmap] = useState(false);
   const heatmapLayerRef = useRef(null);
@@ -117,6 +138,7 @@ const Dashboard = () => {
       });
       await fetchIssues();
       setShowIssueDetail(false);
+      setShowVerificationModal(false);
     } catch (error) {
       console.error('Error updating status:', error);
     }
@@ -147,6 +169,7 @@ const Dashboard = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'Pending': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+      case 'Pending Verification': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
       case 'Assigned': return 'text-blue-600 bg-blue-50 border-blue-200';
       case 'In Progress': return 'text-purple-600 bg-purple-50 border-purple-200';
       case 'Work Completed': return 'text-green-600 bg-green-50 border-green-200';
@@ -182,24 +205,27 @@ const Dashboard = () => {
           (filterPriority === 'All' || issue.priority === filterPriority) &&
           (filterType === 'All' || issue.type === filterType) &&
           (issue.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           issue.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           issue.location.address.toLowerCase().includes(searchTerm.toLowerCase()))
+           (issue.description && issue.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+           (issue.location && issue.location.address && issue.location.address.toLowerCase().includes(searchTerm.toLowerCase())))
         );
       });
   };
 
-  const allUnassignedIssues = issues.filter(i => i.assignedTo === 'Unassigned');
-  const allAssignedIssues = issues.filter(i => i.assignedTo !== 'Unassigned');
-  const filteredUnassignedIssues = applyFilters(allUnassignedIssues);
-  const filteredAssignedIssues = applyFilters(allAssignedIssues);
+  const unassignedIssuesSource = issues.filter(i => i.status === 'Pending');
+  const assignedIssuesSource = issues.filter(i => i.status === 'Assigned' || i.status === 'In Progress');
+  const proofOfWorkSource = issues.filter(i => i.status === 'Work Completed');
+  
+  const filteredUnassignedIssues = applyFilters(unassignedIssuesSource);
+  const filteredAssignedIssues = applyFilters(assignedIssuesSource);
+  const filteredProofOfWorkIssues = applyFilters(proofOfWorkSource);
   const filteredIssuesForMap = applyFilters(issues);
-
+  
   const stats = {
     total: issues.length,
     pending: issues.filter(i => i.status === 'Pending').length,
-    assigned: issues.filter(i => i.status === 'Assigned' || i.status === 'In Progress' || i.status === 'Work Completed').length,
-    inProgress: issues.filter(i => i.status === 'In Progress').length,
-    completed: issues.filter(i => i.status === 'Work Completed' || i.status === 'Verified').length,
+    assigned: assignedIssuesSource.length,
+    proofNeeded: proofOfWorkSource.length,
+    completed: issues.filter(i => i.status === 'Verified').length,
     highPriority: issues.filter(i => i.priority === 'High').length
   };
 
@@ -208,8 +234,8 @@ const Dashboard = () => {
     switch (statType) {
       case 'pending': setFilterStatus('Pending'); break;
       case 'assigned': setFilterStatus('Assigned'); break;
-      case 'inProgress': setFilterStatus('In Progress'); break;
-      case 'completed': setFilterStatus('Work Completed'); break;
+      case 'proofNeeded': setFilterStatus('Work Completed'); break;
+      case 'completed': setFilterStatus('Verified'); break;
       case 'highPriority': setFilterPriority('High'); setFilterStatus('All'); break;
       default: setFilterStatus('All');
     }
@@ -217,7 +243,13 @@ const Dashboard = () => {
 
   const handleIssueClick = (issue) => {
     setSelectedIssue(issue);
-    setShowIssueDetail(true);
+    if (issue.status === 'Work Completed') {
+        setShowIssueDetail(false);
+        setShowVerificationModal(true);
+    } else {
+        setShowVerificationModal(false);
+        setShowIssueDetail(true);
+    }
   };
   
   useEffect(() => {
@@ -238,7 +270,8 @@ const Dashboard = () => {
             
             heatScript.onload = () => {
                 if (window.L && mapRef.current) {
-                    const center = issues.length > 0 ? [issues[0].location.lat, issues[0].location.lng] : [18.5204, 73.8567];
+                    const centerIssue = issues.find(i => i.location);
+                    const center = centerIssue ? [centerIssue.location.lat, centerIssue.location.lng] : [18.5204, 73.8567];
                     leafletMapRef.current = window.L.map(mapRef.current).setView(center, 13);
                     window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         attribution: '© OpenStreetMap contributors'
@@ -287,6 +320,7 @@ const Dashboard = () => {
     }
 
     filteredIssuesForMap.forEach((issue) => {
+      if (!issue.location) return;
       const iconColor = getMarkerColor(issue.status);
       const { size, anchor } = getMarkerSize(issue.priority);
       const customIcon = window.L.divIcon({
@@ -311,6 +345,7 @@ const Dashboard = () => {
 
     if (showHeatmap) {
         const heatmapPoints = filteredIssuesForMap
+            .filter(issue => issue.location)
             .map(issue => [issue.location.lat, issue.location.lng, 1.0]); 
 
         if (heatmapPoints.length > 0) {
@@ -334,28 +369,30 @@ const Dashboard = () => {
       <div className="flex items-center justify-between mb-3">
         <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(issue.status)}`}>{issue.status}</span>
         <div className="flex items-center space-x-2 text-xs text-gray-500">
-          {issue.images > 0 && (<div className="flex items-center space-x-1"><Camera className="w-3 h-3" /><span>{issue.images}</span></div>)}
           <Clock className="w-3 h-3" /><span>{new Date(issue.reportedAt).toLocaleDateString()}</span>
         </div>
       </div>
       <div className="text-xs text-gray-500">
-        <div className="flex items-center space-x-1 mb-1"><MapPin className="w-3 h-3" /><span className="truncate">{issue.location.address}</span></div>
-        <div className="flex items-center space-x-1"><User className="w-3 h-3" /><span>{issue.assignedTo}</span></div>
+        <div className="flex items-center space-x-1"><User className="w-3 h-3" /><span>Assigned: {issue.assignedTo}</span></div>
       </div>
     </div>
   );
 
-  const IssueListRow = ({ issue }) => (
-    <div onClick={() => handleIssueClick(issue)} className="bg-white border rounded-lg p-4 cursor-pointer transition-all hover:shadow-sm hover:border-blue-300">
-      <div className="grid grid-cols-12 gap-4 items-center">
-        <div className="col-span-3 flex items-center space-x-2">{getTypeIcon(issue.type)}<div><h3 className="font-semibold text-gray-900 text-sm">{issue.title}</h3><p className="text-xs text-gray-600">#{issue.id}</p></div></div>
-        <div className="col-span-2"><p className="text-xs text-gray-600 line-clamp-2">{issue.description}</p></div>
-        <div className="col-span-2"><p className="text-xs text-gray-600">{issue.location.address}</p></div>
-        <div className="col-span-1"><span className={`px-2 py-1 text-xs font-medium rounded-full border ${getPriorityColor(issue.priority)}`}>{issue.priority}</span></div>
-        <div className="col-span-1"><span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(issue.status)}`}>{issue.status}</span></div>
-        <div className="col-span-2"><p className="text-xs text-gray-600">{issue.assignedTo}</p></div>
-        <div className="col-span-1 text-right"><p className="text-xs text-gray-500">{new Date(issue.reportedAt).toLocaleDateString()}</p></div>
-      </div>
+  const ProofOfWorkCard = ({ issue }) => (
+    <div onClick={() => handleIssueClick(issue)} className="bg-white rounded-lg border border-gray-200 p-4 cursor-pointer transition-all hover:shadow-md hover:border-blue-300">
+        <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center space-x-2">
+                {getTypeIcon(issue.type)}
+                <h3 className="font-semibold text-gray-900 text-sm">{issue.title}</h3>
+            </div>
+            <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor('Pending Verification')}`}>Pending Verification</span>
+        </div>
+        <p className="text-xs text-gray-600 mb-3 font-medium">Work Summary:</p>
+        <p className="text-xs text-gray-600 mb-3 line-clamp-2">{issue.workProof?.summary || "No summary provided."}</p>
+        <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>Submitted by: <strong>{issue.workProof?.submittedBy || 'N/A'}</strong></span>
+            <span><Clock className="w-3 h-3 inline mr-1" />{new Date().toLocaleDateString()}</span>
+        </div>
     </div>
   );
 
@@ -374,7 +411,7 @@ const Dashboard = () => {
             <div className="flex items-center space-x-4">
               <Link to="/performance" className="flex items-center space-x-2 px-3 py-2 rounded-lg border bg-white border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
                   <BarChart2 className="w-4 h-4" />
-                  <span className="text-sm font-medium">Performance</span>
+                      <span className="text-sm font-medium">Performance</span>
               </Link>
               <button onClick={() => setShowMap(!showMap)} className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-colors ${showMap ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}><Map className="w-4 h-4" /><span className="text-sm font-medium">Map View</span></button>
               <div className="relative"><Bell className="w-6 h-6 text-gray-600 hover:text-gray-800 cursor-pointer" /><span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{stats.highPriority}</span></div>
@@ -411,8 +448,8 @@ const Dashboard = () => {
             <div onClick={() => handleStatClick('total')} className="text-center p-4 rounded-lg bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"><div className="text-2xl font-bold text-gray-900">{stats.total}</div><div className="text-sm text-gray-600">Total Issues</div></div>
             <div onClick={() => handleStatClick('pending')} className="text-center p-4 rounded-lg bg-yellow-50 hover:bg-yellow-100 cursor-pointer transition-colors"><div className="text-2xl font-bold text-yellow-600">{stats.pending}</div><div className="text-sm text-gray-600">Pending</div></div>
             <div onClick={() => handleStatClick('assigned')} className="text-center p-4 rounded-lg bg-blue-50 hover:bg-blue-100 cursor-pointer transition-colors"><div className="text-2xl font-bold text-blue-600">{stats.assigned}</div><div className="text-sm text-gray-600">Assigned</div></div>
-            <div onClick={() => handleStatClick('inProgress')} className="text-center p-4 rounded-lg bg-purple-50 hover:bg-purple-100 cursor-pointer transition-colors"><div className="text-2xl font-bold text-purple-600">{stats.inProgress}</div><div className="text-sm text-gray-600">In Progress</div></div>
-            <div onClick={() => handleStatClick('completed')} className="text-center p-4 rounded-lg bg-green-50 hover:bg-green-100 cursor-pointer transition-colors"><div className="text-2xl font-bold text-green-600">{stats.completed}</div><div className="text-sm text-gray-600">Completed</div></div>
+            <div onClick={() => handleStatClick('proofNeeded')} className="text-center p-4 rounded-lg bg-orange-50 hover:bg-orange-100 cursor-pointer transition-colors"><div className="text-2xl font-bold text-orange-600">{stats.proofNeeded}</div><div className="text-sm text-gray-600">Proof of Work</div></div>
+            <div onClick={() => handleStatClick('completed')} className="text-center p-4 rounded-lg bg-green-50 hover:bg-green-100 cursor-pointer transition-colors"><div className="text-2xl font-bold text-green-600">{stats.completed}</div><div className="text-sm text-gray-600">Verified</div></div>
             <div onClick={() => handleStatClick('highPriority')} className="text-center p-4 rounded-lg bg-red-50 hover:bg-red-100 cursor-pointer transition-colors"><div className="text-2xl font-bold text-red-600">{stats.highPriority}</div><div className="text-sm text-gray-600">High Priority</div></div>
           </div>
         </div>
@@ -433,8 +470,31 @@ const Dashboard = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-lg border border-gray-200 p-6"><div className="flex items-center justify-between mb-6"><h2 className="text-lg font-semibold text-gray-900">Unassigned Issues ({filteredUnassignedIssues.length})</h2></div><div className={viewMode === 'grid' ? 'grid grid-cols-1 xl:grid-cols-2 gap-4' : 'space-y-3'}>{filteredUnassignedIssues.map((issue) => (viewMode === 'grid' ? <IssueGridCard key={issue.id} issue={issue} /> : <IssueListRow key={issue.id} issue={issue} />))}</div>{filteredUnassignedIssues.length === 0 && (<div className="text-center py-12 text-gray-500">No unassigned issues found.</div>)}</div>
-            <div className="bg-white rounded-lg border border-gray-200 p-6"><div className="flex items-center justify-between mb-6"><h2 className="text-lg font-semibold text-gray-900">Assigned Issues ({filteredAssignedIssues.length})</h2></div><div className={viewMode === 'grid' ? 'grid grid-cols-1 xl:grid-cols-2 gap-4' : 'space-y-3'}>{filteredAssignedIssues.map((issue) => (viewMode === 'grid' ? <IssueGridCard key={issue.id} issue={issue} /> : <IssueListRow key={issue.id} issue={issue} />))}</div>{filteredAssignedIssues.length === 0 && (<div className="text-center py-12 text-gray-500">No assigned issues found.</div>)}</div>
+            <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
+                <div>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Unassigned Issues ({filteredUnassignedIssues.length})</h2>
+                    <div className={'grid grid-cols-1 xl:grid-cols-2 gap-4'}>
+                        {filteredUnassignedIssues.map((issue) => (<IssueGridCard key={issue.id} issue={issue} />))}
+                    </div>
+                    {filteredUnassignedIssues.length === 0 && (<div className="text-center py-12 text-gray-500">No unassigned issues.</div>)}
+                </div>
+                 <div>
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Assigned & In-Progress ({filteredAssignedIssues.length})</h2>
+                    <div className={'grid grid-cols-1 xl:grid-cols-2 gap-4'}>
+                        {filteredAssignedIssues.map((issue) => (<IssueGridCard key={issue.id} issue={issue} />))}
+                    </div>
+                    {filteredAssignedIssues.length === 0 && (<div className="text-center py-12 text-gray-500">No active issues found.</div>)}
+                </div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-semibold text-gray-900">Proof of Work ({filteredProofOfWorkIssues.length})</h2>
+                </div>
+                <div className={'grid grid-cols-1 xl:grid-cols-2 gap-4'}>
+                    {filteredProofOfWorkIssues.map((issue) => (<ProofOfWorkCard key={issue.id} issue={issue} />))}
+                </div>
+                {filteredProofOfWorkIssues.length === 0 && (<div className="text-center py-12 text-gray-500">No work proofs to verify.</div>)}
+            </div>
         </div>
       </div>
 
@@ -471,13 +531,13 @@ const Dashboard = () => {
                     <h3 className="font-semibold text-gray-900 mb-3">Description</h3>
                     <p className="text-gray-700 whitespace-pre-wrap">{selectedIssue.description}</p>
                   </div>
-                  <div>
+                  {selectedIssue.location && <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Location</h3>
                     <div className="flex items-start space-x-2">
                       <MapPin className="w-5 h-5 text-gray-500 mt-0.5" />
                       <span className="text-gray-700">{selectedIssue.location.address}</span>
                     </div>
-                  </div>
+                  </div>}
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Reporter Information</h3>
                     <div className="bg-gray-50 rounded-lg p-4">
@@ -518,16 +578,10 @@ const Dashboard = () => {
                    <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Quick Actions</h3>
                     <div className="space-y-2">
-                      {selectedIssue.assignedTo === 'Unassigned' && (
-                        <button onClick={() => setShowAssignModal(true)} className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2">
+                      {selectedIssue.status === 'Pending' && (
+                        <button onClick={() => { setShowIssueDetail(false); setShowAssignModal(true); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2">
                           <UserPlus className="w-4 h-4" />
                           <span>Assign Worker</span>
-                        </button>
-                      )}
-                       { (selectedIssue.status === 'Assigned' || selectedIssue.status === 'In Progress') && (
-                        <button onClick={() => handleUpdateStatus(selectedIssue.id, 'Verified')} className="w-full bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2">
-                          <CheckCircle className="w-4 h-4" />
-                          <span>Mark as Verified</span>
                         </button>
                       )}
                     </div>
@@ -538,44 +592,15 @@ const Dashboard = () => {
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-sm text-gray-500">Assigned To</div>
                         {selectedIssue.assignedTo === 'Unassigned' ? (
-                          <button onClick={() => setShowAssignModal(true)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Assign Now</button>
+                          <button onClick={() => { setShowIssueDetail(false); setShowAssignModal(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Assign Now</button>
                         ) : (
-                          <button onClick={() => setShowAssignModal(true)} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Re-assign</button>
+                          <button onClick={() => { setShowIssueDetail(false); setShowAssignModal(true); }} className="text-xs text-blue-600 hover:text-blue-800 font-medium">Re-assign</button>
                         )}
                       </div>
                       <div className="font-medium text-gray-900 flex items-center space-x-2">
                         <User className="w-4 h-4 text-gray-500" />
                         <span>{selectedIssue.assignedTo}</span>
                       </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-3">More Actions</h3>
-                    <div className="space-y-2">
-                      <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2"><MessageSquare className="w-4 h-4" /><span>Add Comment</span></button>
-                      <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2"><Download className="w-4 h-4" /><span>Download Report</span></button>
-                      <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2"><Archive className="w-4 h-4" /><span>Archive Issue</span></button>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-3">Recent Activity</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-start space-x-3">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">Issue reported</p>
-                          <p className="text-xs text-gray-500">{new Date(selectedIssue.reportedAt).toLocaleString()}</p>
-                        </div>
-                      </div>
-                      {selectedIssue.assignedTo !== 'Unassigned' && (
-                        <div className="flex items-start space-x-3">
-                          <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">Assigned to {selectedIssue.assignedTo}</p>
-                            <p className="text-xs text-gray-500">Just now</p>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -585,7 +610,55 @@ const Dashboard = () => {
         </div>
       )}
 
-      {showAssignModal && (
+      {showVerificationModal && selectedIssue && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">{selectedIssue.title}</h2>
+                  <p className="text-sm text-gray-600">#{selectedIssue.id} • {selectedIssue.department}</p>
+                </div>
+                <button onClick={() => setShowVerificationModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
+              </div>
+              <div className="flex space-x-2 mt-4">
+                <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusColor('Work Completed')}`}>Work Completed</span>
+                <span className={`px-3 py-1 text-sm font-medium rounded-full border ${getStatusColor('Pending Verification')}`}>Pending Verification</span>
+              </div>
+            </div>
+            
+            <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-4">
+                <div>
+                  <h3 className="font-semibold text-gray-800 mb-2">Work Summary</h3>
+                  <p className="text-gray-700 bg-gray-50 p-3 rounded-lg border">{selectedIssue.workProof?.summary || "No summary was provided."}</p>
+                  <p className="text-xs text-gray-500 mt-2">Submitted by <strong>{selectedIssue.workProof?.submittedBy}</strong> on {new Date().toLocaleDateString()}</p>
+                </div>
+                <div>
+                    <h3 className="font-semibold text-gray-800 mb-2">Work Proof Image</h3>
+                    <img src={selectedIssue.workProof?.imageUrl} alt="Work proof" className="w-full h-auto rounded-lg object-cover border"/>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <h3 className="font-semibold text-gray-800">Verification Actions</h3>
+                <div>
+                  <label htmlFor="adminNotes" className="text-sm font-medium text-gray-700">Admin Notes (Optional)</label>
+                  <textarea id="adminNotes" rows="4" placeholder="Add feedback for the worker..." className="mt-1 w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+                <div className="space-y-2">
+                    <button onClick={() => handleUpdateStatus(selectedIssue.id, 'Verified')} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center space-x-2">
+                        <CheckCircle className="w-4 h-4" />
+                        <span>Mark as Verified & Complete</span>
+                    </button>
+                    <button onClick={() => handleUpdateStatus(selectedIssue.id, 'Rejected')} className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Send for Re-escalation</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAssignModal && selectedIssue && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-96 max-w-full mx-4">
             <div className="flex items-center justify-between mb-4">
@@ -616,3 +689,5 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
+
