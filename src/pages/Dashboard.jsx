@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom'; // Import the Link component
 import { 
   Search, Filter, Bell, Settings, User, Calendar,
   Clock, AlertTriangle, CheckCircle, XCircle,
@@ -6,7 +7,7 @@ import {
   Trash2, Lightbulb, Car, TreePine, Map, X,
   Plus, UserPlus, Edit3, Send, Archive,
   RefreshCw, ChevronDown, ChevronUp, Grid, Menu, Phone,
-  Thermometer
+  Thermometer, BarChart2
 } from 'lucide-react';
 
 // --- API Configuration & Static Data ---
@@ -121,7 +122,6 @@ const Dashboard = () => {
     }
   };
   
-  // --- MODIFIED: This function now ONLY updates the frontend state as requested ---
   const handleAssignIssue = (workerId) => {
     const worker = workers.find(w => w.id === workerId);
     if (!worker || !selectedIssue) return;
@@ -134,7 +134,6 @@ const Dashboard = () => {
       )
     );
     
-    // Also update the selected issue in the modal for immediate feedback
     setSelectedIssue(prev => ({
         ...prev,
         assignedTo: worker.name,
@@ -373,6 +372,10 @@ const Dashboard = () => {
                 <div className="hidden md:flex items-center space-x-2 text-sm text-gray-500"><MapPin className="w-4 h-4" /><span>Pune, Maharashtra</span></div>
             </div>
             <div className="flex items-center space-x-4">
+              <Link to="/performance" className="flex items-center space-x-2 px-3 py-2 rounded-lg border bg-white border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+                  <BarChart2 className="w-4 h-4" />
+                  <span className="text-sm font-medium">Performance</span>
+              </Link>
               <button onClick={() => setShowMap(!showMap)} className={`flex items-center space-x-2 px-3 py-2 rounded-lg border transition-colors ${showMap ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}><Map className="w-4 h-4" /><span className="text-sm font-medium">Map View</span></button>
               <div className="relative"><Bell className="w-6 h-6 text-gray-600 hover:text-gray-800 cursor-pointer" /><span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">{stats.highPriority}</span></div>
               <button className="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg transition-colors"><User className="w-5 h-5 text-gray-600" /><span className="hidden md:block text-sm font-medium text-gray-700">Admin User</span></button>
@@ -435,7 +438,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* --- MODIFIED: This is the new modal layout you requested --- */}
       {showIssueDetail && selectedIssue && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -464,7 +466,6 @@ const Dashboard = () => {
 
             <div className="p-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column */}
                 <div className="lg:col-span-2 space-y-6">
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Description</h3>
@@ -513,7 +514,6 @@ const Dashboard = () => {
                   )}
                 </div>
 
-                {/* Right Column */}
                 <div className="space-y-6">
                    <div>
                     <h3 className="font-semibold text-gray-900 mb-3">Quick Actions</h3>

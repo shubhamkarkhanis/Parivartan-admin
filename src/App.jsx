@@ -1,21 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import AdminLogin from './pages/AdminLogin';
-import Dashboard from './pages/Dashboard';
+import { BrowserRouter } from 'react-router-dom';
+import AppRoutes from './routes'; // Import your routes
 
 const App = () => {
   const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in (simulate checking localStorage)
-    // In a real app, you would check localStorage or make an API call to validate token
-    const savedUser = null; // JSON.parse(localStorage.getItem('user'))
+    // Simulate checking for a logged-in user
+    const savedUser = null; // In a real app, you'd get this from localStorage
     
     setTimeout(() => {
       if (savedUser) {
         setUser(savedUser);
-        setIsAuthenticated(true);
       }
       setIsLoading(false);
     }, 500);
@@ -23,21 +20,14 @@ const App = () => {
 
   const handleLogin = (userData) => {
     setUser(userData);
-    setIsAuthenticated(true);
-    // In a real app: localStorage.setItem('user', JSON.stringify(userData))
-    // Also set authentication token for API calls
+    // In a real app, you would save the user/token to localStorage here
   };
 
   const handleLogout = () => {
     setUser(null);
-    setIsAuthenticated(false);
-    // In a real app: 
-    // localStorage.removeItem('user')
-    // localStorage.removeItem('token')
-    // Clear any API tokens
+    // In a real app, you would clear localStorage here
   };
 
-  // Loading screen
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -49,12 +39,12 @@ const App = () => {
     );
   }
 
-  // Render based on authentication status
-  if (!isAuthenticated) {
-    return <AdminLogin onLogin={handleLogin} />;
-  }
-
-  return <Dashboard user={user} onLogout={handleLogout} />;
+  // The router now controls which page is displayed based on the URL
+  return (
+    <BrowserRouter>
+      <AppRoutes user={user} onLogin={handleLogin} onLogout={handleLogout} />
+    </BrowserRouter>
+  );
 };
 
 export default App;
