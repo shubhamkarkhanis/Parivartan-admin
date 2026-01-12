@@ -7,4 +7,4 @@ export const API_URL = 'https://parivartan-backend.onrender.com';
 
 // 2. USER APP URL (Mobile Frontend)
 // This is where your mobile app web version is hosted (e.g., Netlify)
-export const USER_APP_URL = 'https://chimerical-kulfi-dbe148.netlify.app/';
+export const USER_APP_URL = 'https://parivartan-citizen.netlify.app/';
