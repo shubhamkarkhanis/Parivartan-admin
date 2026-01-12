@@ -88,12 +88,12 @@ const PerformancePage = () => {
   ];
 
   const monthlyResolutionData = [
-    { name: 'Jan', Resolved: 45, Pending: 12 },
-    { name: 'Feb', Resolved: 52, Pending: 8 },
-    { name: 'Mar', Resolved: 38, Pending: 15 },
-    { name: 'Apr', Resolved: 61, Pending: 6 },
-    { name: 'May', Resolved: 48, Pending: 9 },
-    { name: 'Jun', Resolved: 55, Pending: 8 },
+    { name: 'Apr', Resolved: 45, Pending: 12 },
+    { name: 'May', Resolved: 52, Pending: 8 },
+    { name: 'Jun', Resolved: 38, Pending: 15 },
+    { name: 'Jul', Resolved: 61, Pending: 6 },
+    { name: 'Aug', Resolved: 48, Pending: 9 },
+    { name: 'Sep', Resolved: 55, Pending: 8 },
   ];
 
   return (
